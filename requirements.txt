@@ -1,0 +1,7 @@
+fastapi==0.111.0
+uvicorn==0.27.1
+python-dotenv==1.0.1
+httpx==0.27.0
+alibabacloud_dingtalk==2.2.17
+alibabacloud_tea_util==0.3.8
+alibabacloud_openapi_util==1.0.9
