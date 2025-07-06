@@ -1,16 +1,13 @@
 """dingtalk_client.py
-A minimal wrapper around DingTalk Open Platform APIs used in this project.
+DingTalk 开放平台 API 的最小封装，供本项目使用。
 
-It offers:
-1. Access-token retrieval with in-memory caching.
-2. File download helpers (by mediaId or the officially recommended downloadCode).
-3. File upload helpers that first call media/upload and then attach the file
-   to DingDrive, returning a preview URL that can be consumed by the assistant.
-4. Convenience methods for resolving user names to unionId and obtaining the
-   personal spaceId associated with a unionId.
+它提供：
+1. 访问令牌（access_token）获取与内存缓存；
+2. 文件下载辅助函数（支持 mediaId 或官方推荐的 downloadCode）；
+3. 文件上传辅助函数：先调用 media/upload，然后把文件附加到钉盘，返回可供AI助理使用的预览 URL；
+4. 方便方法：根据成员姓名解析 unionId，以及根据 unionId 获取个人 spaceId。
 
-The class is **async-friendly** and designed to be reused as a lazily-loaded
-singleton via `get_dingtalk_client()`.
+该类 支持异步，并设计为通过 `get_dingtalk_client()` 以延迟加载的单例形式复用。
 """
 
 from __future__ import annotations
@@ -31,36 +28,34 @@ settings = get_settings()
 
 
 class DingTalkClient:
-    """High-level async abstraction of DingTalk Open Platform endpoints.
+    """DingTalk Open Platform 端点的高级异步抽象。
 
-    The implementation purposefully covers only the subset of endpoints that
-    the current project requires.  Adding new methods is straightforward—just
-    reuse the internal `_http` client and remember to tack the (possibly
-    refreshed) access token onto the request.
+    目前仅实现了本项目所需的一小部分接口。若需扩展，只需复用内部
+    `_http` 客户端，并记得在请求中附加（可能已自动刷新）的 access_token即可。
     """
 
     _token_cache_key = "_dingtalk_access_token"
 
     def __init__(self) -> None:
-        # in-memory token cache (value + expiry timestamp)
+        # 内存中的令牌缓存（值 + 过期时间戳）
         self._token: Optional[str] = None
         self._expire_at: float = 0.0
 
-        # shared httpx.AsyncClient instance (10-second timeout)
+        # 共享的 httpx.AsyncClient 实例（10 秒超时）
         self._http = httpx.AsyncClient(timeout=10)
 
-        # auxiliary caches:  human-name -> unionId / unionId -> spaceId
+        # 辅助缓存：人名 -> unionId / unionId -> spaceId
         self._union_cache: dict[str, str] = {}
         self._space_cache: dict[str, str] = {}
 
-        # guards concurrent cache fills
+        # 防止并发写缓存
         self._lock = asyncio.Lock()
 
     # ---------------------------------------------------------------------
-    # Access token helpers
+    # AccessToken 辅助方法
     # ---------------------------------------------------------------------
     async def _fetch_access_token(self) -> str:
-        """Query DingTalk for a fresh access token and update local cache."""
+        """向钉钉请求新的 access_token 并更新本地缓存。"""
         url = "https://oapi.dingtalk.com/gettoken"
         params = {
             "appkey": settings.app_key,
@@ -80,16 +75,16 @@ class DingTalkClient:
         return token
 
     async def get_access_token(self) -> str:
-        """Return a valid access token, refreshing it if necessary."""
+        """返回有效的 access_token，如有必要会自动刷新。"""
         if self._token and time.time() < self._expire_at:
             return self._token
         return await self._fetch_access_token()
 
     # ---------------------------------------------------------------------
-    # Basic download helpers
+    # 基础下载辅助函数
     # ---------------------------------------------------------------------
     async def get_media_download_url(self, media_id: str) -> str:
-        """Convert a *mediaId* into a temporary download URL."""
+        """将 mediaId 转换为临时下载 URL。"""
         access_token = await self.get_access_token()
         return (
             "https://oapi.dingtalk.com/media/downloadFile"
@@ -97,19 +92,19 @@ class DingTalkClient:
         )
 
     async def download_file(self, media_id: str) -> bytes:
-        """Download the binary payload referenced by *mediaId*."""
+        """下载由 mediaId 指向的二进制文件。"""
         url = await self.get_media_download_url(media_id)
         resp = await self._http.get(url)
         resp.raise_for_status()
         return resp.content
 
     async def download_file_by_code(self, download_code: str, robot_code: str) -> bytes:
-        """Download an attachment using the *downloadCode* flow (preferred)."""
+        """使用 downloadCode 流程下载附件（推荐）。"""
         token = await self.get_access_token()
         api_url = "https://api.dingtalk.com/v1.0/robot/messageFiles/download"
         headers = {"x-acs-dingtalk-access-token": token}
 
-        # 1️⃣ exchange code for a temporary download link
+        # 1. exchange code for a temporary download link
         resp = await self._http.post(
             api_url,
             json={"downloadCode": download_code, "robotCode": robot_code},
@@ -120,16 +115,16 @@ class DingTalkClient:
         if not download_url:
             raise RuntimeError(f"downloadUrl 获取失败: {resp.text}")
 
-        # 2️⃣ actual file download
+        # 2. actual file download
         file_resp = await self._http.get(download_url)
         file_resp.raise_for_status()
         return file_resp.content
 
     # ---------------------------------------------------------------------
-    # DingDrive helpers
+    # 钉盘辅助函数
     # ---------------------------------------------------------------------
     async def _upload_media(self, file_bytes: bytes, filename: str) -> str:
-        """Upload *file_bytes* via media/upload and return the generated mediaId."""
+        """通过 media/upload 接口上传 file_bytes 并返回生成的 mediaId。"""
         token = await self.get_access_token()
         url = (
             "https://oapi.dingtalk.com/media/upload"
@@ -143,7 +138,7 @@ class DingTalkClient:
         return data["media_id"]
 
     async def _get_my_space_id(self) -> str:
-        """Return the spaceId for the current user (or .env override)."""
+        """获取当前用户的 spaceId（或使用 .env 中的覆盖值）。"""
         # 1. explicit override wins
         if settings.drive_space_id:
             return settings.drive_space_id
@@ -172,7 +167,7 @@ class DingTalkClient:
         return first_space.get("spaceId") or first_space.get("space_id")
 
     async def _drive_add_file(self, space_id: str, media_id: str, filename: str) -> str:
-        """Attach a *mediaId* to DingDrive and return the resulting fileId."""
+        """将 mediaId 附加到钉盘并返回生成的 fileId。"""
         if not settings.agent_id:
             raise RuntimeError("请在 .env 中配置 AGENT_ID 用于钉盘接口调用")
         token = await self.get_access_token()
@@ -193,7 +188,7 @@ class DingTalkClient:
         return data["result"]["file_id"]
 
     async def _drive_get_preview(self, space_id: str, file_id: str) -> str:
-        """Return the web preview URL for a DingDrive file."""
+        """获取钉盘文件的网页预览 URL。"""
         if not settings.agent_id:
             raise RuntimeError("请在 .env 中配置 AGENT_ID 用于钉盘接口调用")
         token = await self.get_access_token()
@@ -208,15 +203,12 @@ class DingTalkClient:
         return data["result"]["preview_url"]
 
     # ---------------------------------------------------------------------
-    # Public helpers (used by other modules)
+    # 公共辅助方法
     # ---------------------------------------------------------------------
     async def upload_doc_and_get_url(self, file_bytes: bytes, filename: str) -> str:
-        """Upload *file_bytes* and return an HTTPS URL to make it publicly downloadable.
+        """上传 file_bytes 并返回一个 HTTPS URL，使文件可以公开下载。
 
-        The function prioritises DingDrive for production-quality hosting.  If
-        that path is not viable (e.g. missing credentials in development) it
-        falls back to a local static directory that FastAPI exposes via
-        `StaticFiles` *provided* that `PUBLIC_BASE_URL` is configured.
+        优先使用钉盘进行文件托管；如果该路径不可用，则回退到本地静态目录，要求配置 `PUBLIC_BASE_URL`。
         """
         try:
             media_id = await self._upload_media(file_bytes, filename)
@@ -226,7 +218,6 @@ class DingTalkClient:
         except Exception as exc:  # noqa: BLE001
             logger.warning("钉盘上传失败，回退本地直链模式: %s", exc)
 
-        # fallback: local static hosting
         if not settings.public_base_url:
             raise RuntimeError("钉盘上传失败，且未配置 PUBLIC_BASE_URL，无法生成文件下载链接。")
 
@@ -240,14 +231,14 @@ class DingTalkClient:
         return f"{settings.public_base_url.rstrip('/')}/uploads/{safe_name}"
 
     async def close(self) -> None:
-        """Close the internal async http client."""
+        """关闭内部的异步 HTTP 客户端。"""
         await self._http.aclose()
 
     # ------------------------------------------------------------------
-    # Address-book helpers
+    # 通讯录辅助方法
     # ------------------------------------------------------------------
     async def get_union_id_by_name(self, name: str) -> str:
-        """Resolve *name* to unionId (cached)."""
+        """将 name 解析为 unionId（带缓存）。"""
         if name in self._union_cache:
             return self._union_cache[name]
 
@@ -281,7 +272,7 @@ class DingTalkClient:
             return union_id
 
     async def get_space_id_for_union(self, union_id: str) -> str:
-        """Return the DingDrive personal spaceId for *union_id* (cached)."""
+        """返回 union_id 对应个人钉盘空间的 spaceId（带缓存）。"""
         if union_id in self._space_cache:
             return self._space_cache[union_id]
 
@@ -300,7 +291,7 @@ class DingTalkClient:
         return space_id
 
     async def upload_doc_to_user_space(self, file_bytes: bytes, filename: str, union_id: str) -> str:
-        """Upload *file_bytes* directly into the personal space of *union_id*."""
+        """将 file_bytes 直接上传到指定用户（unionId）的个人空间。"""
         space_id = await self.get_space_id_for_union(union_id)
         media_id = await self._upload_media(file_bytes, filename)
         file_id = await self._drive_add_file(space_id, media_id, filename)
@@ -309,5 +300,5 @@ class DingTalkClient:
 
 @lru_cache()
 def get_dingtalk_client() -> DingTalkClient:
-    """Lazily-initialised process-wide DingTalkClient singleton."""
+    """延迟初始化的全局 DingTalkClient 单例。"""
     return DingTalkClient() 

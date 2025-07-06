@@ -1,7 +1,7 @@
-"""config.py
-Centralised environment-variable configuration using a lightweight
-Settings class.  All modules should retrieve the singleton instance via
-`get_settings()` to avoid repeated parsing.
+"""
+config.py
+集中管理环境变量的配置模块，使用轻量级 Settings 类封装。
+所有模块都应通过 `get_settings()` 获取单例实例，避免重复解析。
 """
 
 import os
@@ -11,37 +11,35 @@ from dotenv import load_dotenv
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-# Load a sibling .env file if present.  Variables already defined in the
-# shell take precedence (override=False).
+# 如果存在同级 .env 文件则加载；已在 shell 中定义的变量具有更高优先级（override=False）。
 load_dotenv(os.path.join(BASE_DIR, ".env"), override=False)
 
 
 class Settings:
-    """Container for project-wide configuration values."""
+    """项目级配置值的容器。"""
 
-    # DingTalk App
+    # 钉钉应用
     app_key: str = os.getenv("DINGTALK_APP_KEY", "")
     app_secret: str = os.getenv("DINGTALK_APP_SECRET", "")
     assistant_id: str = os.getenv("ASSISTANT_ID", "")
 
-    # HTTP server
+    # HTTP 服务器
     host: str = os.getenv("HOST", "0.0.0.0")
     port: int = int(os.getenv("PORT", "8000"))
 
-    # Public base URL used for static downloads
+    # 用于静态下载的公共基础 URL
     public_base_url: str = os.getenv("PUBLIC_BASE_URL", "")
 
-    # DingDrive (optional)
+    # 钉盘
     drive_space_id: str | None = os.getenv("DRIVE_SPACE_ID")
     agent_id: str | None = os.getenv("AGENT_ID")
-    # current operator
+
+    # 当前操作人
     union_id: str | None = os.getenv("UNION_ID")
 
-    # Callback mode: http / stream.  Defaults to http
-    callback_mode: str = os.getenv("CALLBACK_MODE", "http").lower()
 
 
 @lru_cache()
 def get_settings() -> Settings:
-    """Return a cached `Settings` instance (process-wide singleton)."""
+    """返回缓存的 `Settings` 实例（进程级单例）。"""
     return Settings()

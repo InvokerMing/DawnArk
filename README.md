@@ -1,6 +1,6 @@
 # DingTalk Knowledge Auto-Importer
 
-> 自动将文件收录到钉钉 AI 助理知识库的项目。
+> 自动将文件收录到钉钉 AI 助理知识库的项目，基于钉钉官方文档开发。
 
 ## 方案说明
 

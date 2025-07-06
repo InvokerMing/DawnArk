@@ -1,15 +1,12 @@
 """stream_listener.py
-Asynchronous event listener built on top of the **dingtalk-stream** SDK.
+基于 dingtalk-stream SDK 的异步事件监听器。
 
-The listener registers a single `FileBotHandler` that is interested in two
-message types:
-1. **file** – downloads the attachment, uploads it to DingDrive and forwards
-   the resulting preview URL to the assistant knowledge base.
-2. **text** – replies with a success acknowledgement.
+监听器只注册了一个 `FileBotHandler`，它关注两种消息类型：
+1. file – 下载附件 → 上传钉盘 → 将预览 URL 写入助手知识库；
+2. text – 回复成功确认。
 
-The `start_stream_listener()` helper is imported by `main.py` at startup and
-runs the SDK client in a background thread so that FastAPI can continue to
-serve HTTP requests.
+`start_stream_listener()` 在应用启动时由 `main.py` 导入，
+在后台线程中运行 SDK 客户端，从而允许 FastAPI 继续处理 HTTP 请求。
 """
 
 from __future__ import annotations
@@ -27,7 +24,7 @@ from .knowledge_uploader import upload_doc_url
 
 
 # ---------------------------------------------------------------------------
-# Logging setup – keeps output format consistent across modules.
+# 日志设置 —— 保持各模块输出格式一致
 # ---------------------------------------------------------------------------
 
 def _setup_logger() -> logging.Logger:
@@ -49,7 +46,7 @@ settings = get_settings()
 
 
 class FileBotHandler(ChatbotHandler):
-    """Handle *file* and *text* messages pushed by the DingTalk stream."""
+    """处理钉钉 Stream 推送的 file 与 text 消息。"""
 
     async def process(self, callback: CallbackMessage):  # type: ignore[override]
         logger.info("收到 Stream 原始消息: %s", callback.data)
@@ -58,7 +55,7 @@ class FileBotHandler(ChatbotHandler):
         msgtype = message.message_type  # type: ignore[attr-defined]
 
         # --------------------------------------------------------------
-        # File message – download → upload → learn
+        # 文件消息 – 下载 → 上传 → 学习
         # --------------------------------------------------------------
         if msgtype == "file":
             content = callback.data.get("content", {})  # type: ignore[index]
@@ -93,7 +90,7 @@ class FileBotHandler(ChatbotHandler):
             return AckMessage.STATUS_OK, "file_processed"
 
         # --------------------------------------------------------------
-        # Text message – simply echo confirmation
+        # 文本消息 – 简单回显确认
         # --------------------------------------------------------------
         if msgtype == "text":
             text = message.text.content.strip()  # type: ignore[attr-defined]
@@ -101,22 +98,21 @@ class FileBotHandler(ChatbotHandler):
             self.reply_text("成功", message)
             return AckMessage.STATUS_OK, "text_processed"
 
-        # Unhandled message types
+        # 未处理的消息类型
         logger.info("忽略的消息类型: %s", msgtype)
         return AckMessage.STATUS_OK, "ignored"
 
 
 # ---------------------------------------------------------------------------
-# Public API
+# 公共 API
 # ---------------------------------------------------------------------------
 
 def start_stream_listener() -> None:
-    """Kick off the DingTalk streaming client in a background thread."""
+    """在后台线程中启动 DingTalk 流式客户端。"""
 
     credential = dingtalk_stream.Credential(settings.app_key, settings.app_secret)
     client = dingtalk_stream.DingTalkStreamClient(credential)
 
-    # register our handler; the SDK takes care of automatic reconnection
     client.register_callback_handler(ChatbotMessage.TOPIC, FileBotHandler())
 
     thread = threading.Thread(target=client.start_forever, daemon=True)

@@ -1,9 +1,6 @@
-"""knowledge_uploader.py
-Wrapper around DingTalk *LearnKnowledge* API — uploads a document URL so that
-it becomes part of the assistant knowledge base.
-
-文档示例见：
-https://dingtalk.apifox.cn/doc-3586280
+"""
+knowledge_uploader.py
+DingTalk LearnKnowledge API 的轻量封装 —— 上传文档 URL，使其成为AI助理知识库的一部分。
 """
 
 from __future__ import annotations
@@ -21,7 +18,6 @@ from .dingtalk_client import get_dingtalk_client
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
-# A single, reusable SDK client – creating it is relatively expensive.
 _cfg = OpenApiConfig()
 _cfg.protocol = "https"
 _cfg.region_id = "central"
@@ -29,9 +25,9 @@ _assistant_client = AssistantClient(_cfg)
 
 
 async def upload_doc_url(doc_url: str, title: str) -> bool:
-    """Let the assistant learn a document given by *doc_url*.
+    """让AI助理学习由 doc_url 指定的文档。
 
-    Returns ``True`` on success, ``False`` otherwise.
+    成功返回 ``True``，失败返回 ``False``。
     """
 
     if not settings.assistant_id:
