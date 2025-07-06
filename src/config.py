@@ -1,3 +1,9 @@
+"""config.py
+Centralised environment-variable configuration using a lightweight
+Settings class.  All modules should retrieve the singleton instance via
+`get_settings()` to avoid repeated parsing.
+"""
+
 import os
 from functools import lru_cache
 from dotenv import load_dotenv
@@ -5,30 +11,37 @@ from dotenv import load_dotenv
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-# 尝试加载同级目录的 .env 文件；用户可自行复制 env.example
-load_dotenv(os.path.join(BASE_DIR, '.env'), override=False)
+# Load a sibling .env file if present.  Variables already defined in the
+# shell take precedence (override=False).
+load_dotenv(os.path.join(BASE_DIR, ".env"), override=False)
 
 
 class Settings:
-    """读取环境变量配置"""
+    """Container for project-wide configuration values."""
 
-    # 钉钉基础配置
-    app_key: str = os.getenv('DINGTALK_APP_KEY', '')
-    app_secret: str = os.getenv('DINGTALK_APP_SECRET', '')
-    token: str = os.getenv('DINGTALK_TOKEN', '')
-    aes_key: str = os.getenv('DINGTALK_AES_KEY', '')
-    corp_id: str = os.getenv('DINGTALK_CORP_ID', '')
-    assistant_id: str = os.getenv('ASSISTANT_ID', '')
+    # DingTalk App
+    app_key: str = os.getenv("DINGTALK_APP_KEY", "")
+    app_secret: str = os.getenv("DINGTALK_APP_SECRET", "")
+    assistant_id: str = os.getenv("ASSISTANT_ID", "")
 
-    # 服务端口
-    host: str = os.getenv('HOST', '0.0.0.0')
-    port: int = int(os.getenv('PORT', '8000'))
+    # HTTP server
+    host: str = os.getenv("HOST", "0.0.0.0")
+    port: int = int(os.getenv("PORT", "8000"))
 
-    # 供演示的公网域名（如配置，则文件保存到本地 uploads 目录并生成直链）
-    public_base_url: str = os.getenv('PUBLIC_BASE_URL', '')
+    # Public base URL used for static downloads
+    public_base_url: str = os.getenv("PUBLIC_BASE_URL", "")
+
+    # DingDrive (optional)
+    drive_space_id: str | None = os.getenv("DRIVE_SPACE_ID")
+    agent_id: str | None = os.getenv("AGENT_ID")
+    # current operator
+    union_id: str | None = os.getenv("UNION_ID")
+
+    # Callback mode: http / stream.  Defaults to http
+    callback_mode: str = os.getenv("CALLBACK_MODE", "http").lower()
 
 
 @lru_cache()
 def get_settings() -> Settings:
-    """缓存 Settings 防止重复解析"""
-    return Settings() 
+    """Return a cached `Settings` instance (process-wide singleton)."""
+    return Settings()
